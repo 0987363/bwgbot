@@ -67,11 +67,14 @@
 
 ### 服务器配置
 
+可以到[这里](https://bandwagonhost.com/whmcsExportServiceInfoCsv.php) 获取当前BWG账号下所有VEID和API Key。
+
 对于每个要监控的服务器，需要添加两个环境变量：
 - `{服务器名称}_VEID`：来自 BWG 控制面板的 VEID
 - `{服务器名称}_API_KEY`：来自 BWG 控制面板的 API 密钥
 
 `服务器名称` 可以是任何你选择的标识符（例如：`US1`、`EU1`、`ASIA1`）。
+
 
 ### 群组配置
 

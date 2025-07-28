@@ -66,6 +66,8 @@ A Telegram bot that monitors server usage for BandwagonHost (BWG) VPS servers by
 
 ### Server Configuration
 
+You can access [here](https://bandwagonhost.com/whmcsExportServiceInfoCsv.php) to get all VEID and API Keys under your current BWG account。
+
 For each server you want to monitor, add two environment variables:
 - `{SERVER_NAME}_VEID`: The VEID from your BWG control panel
 - `{SERVER_NAME}_API_KEY`: The API key from your BWG control panel
