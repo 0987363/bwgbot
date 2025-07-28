@@ -19,6 +19,10 @@ A Telegram bot that monitors server usage for BandwagonHost (BWG) VPS servers by
 - `/report` - Generate a report for all configured servers
 - `/getgroupid` - Get the current chat/group ID for configuration
 
+## Screencopy
+
+![Screencopy](screencopy.png)
+
 ## Installation
 
 1. **Clone the repository**:
