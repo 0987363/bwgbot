@@ -1,3 +1,6 @@
+中文版|[English](README.md)
+
+
 # BWG Bot - 服务器使用监控机器人
 
 一个 Telegram 机器人，通过查询 64clouds API 监控 BandwagonHost (BWG) VPS 服务器使用情况，并在指定的时间自动向配置的 Telegram 群组或用户发送报告。

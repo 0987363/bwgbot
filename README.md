@@ -1,3 +1,5 @@
+[中文版](README.zh_CN.md)|English
+
 # BWG Bot - Server Usage Monitoring Bot
 
 A Telegram bot that monitors server usage for BandwagonHost (BWG) VPS servers by querying the 64clouds API and sending automated reports to configured Telegram groups or users at specific scheduled times.
