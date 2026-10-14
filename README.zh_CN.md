@@ -49,6 +49,9 @@
    # - 每周：weekly:DAY:HH:MM 或 DAY:HH:MM（例如：MON:09:00）
    # - 每月：monthly:DD:HH:MM 或 DD:HH:MM（例如：06:09:00）
    AUTO_REPORT_SCHEDULE=daily:09:00
+
+   # 机器人启动后立即发送一次自动报告（配置任意非空值启用）
+   # AUTO_REPORT_ON_START=1
    
    # 服务器配置（根据需要添加）
    SERVER1_VEID=your_veid_here
@@ -134,6 +137,10 @@ AUTO_REPORT_SCHEDULE=monthly:06:09:00
 ```
 
 **支持的星期**：MON, TUE, WED, THU, FRI, SAT, SUN
+
+### 启动后立即执行一次
+
+将 `AUTO_REPORT_ON_START` 设置为任意非空值，机器人启动后会立即发送一次报告，后续报告仍按照 `AUTO_REPORT_SCHEDULE` 执行。不配置或配置为空时，首次报告也按照原有调度时间执行。
 
 ## 使用示例
 

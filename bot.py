@@ -29,6 +29,7 @@ class Config:
             raise ValueError("BOT_TOKEN 未在 .env 文件中配置")
 
         self.auto_report_schedule = self._parse_report_schedule()
+        self.auto_report_on_start = bool(os.getenv('AUTO_REPORT_ON_START'))
         self.servers = self._load_servers()
         self.group_configs = self._load_group_configs()
 
@@ -333,6 +334,33 @@ def calculate_next_run_time(schedule):
     
     return next_run
 
+def schedule_initial_auto_report(job_queue, auto_report_job, config):
+    """注册自动报告的首次任务。"""
+    if config.auto_report_on_start:
+        logger.info("已启用启动时立即执行自动报告")
+        job_queue.run_once(auto_report_job, when=0)
+        return
+
+    next_run_time = calculate_next_run_time(config.auto_report_schedule)
+    delay = (next_run_time - datetime.datetime.now()).total_seconds()
+
+    # 如果延迟时间太短（小于30秒），则延迟到下一个调度时间
+    if delay < 30:
+        logger.info("首次运行时间过于接近，延迟到下一个调度时间")
+        if config.auto_report_schedule['type'] == 'daily':
+            next_run_time += datetime.timedelta(days=1)
+        elif config.auto_report_schedule['type'] == 'weekly':
+            next_run_time += datetime.timedelta(weeks=1)
+        elif config.auto_report_schedule['type'] == 'monthly':
+            if next_run_time.month == 12:
+                next_run_time = next_run_time.replace(year=next_run_time.year + 1, month=1)
+            else:
+                next_run_time = next_run_time.replace(month=next_run_time.month + 1)
+        delay = (next_run_time - datetime.datetime.now()).total_seconds()
+
+    job_queue.run_once(auto_report_job, when=delay)
+    logger.info(f"自动报告任务已设置，{config._format_schedule_display()}，首次运行时间: {next_run_time.strftime('%Y-%m-%d %H:%M:%S')}")
+
 async def auto_report_job(context: ContextTypes.DEFAULT_TYPE):
     """定时任务，自动发送报告到指定群组"""
     logger.info("开始执行自动报告任务...")
@@ -378,30 +406,7 @@ def main():
 
     # 设置并启动自动报告任务
     if config.group_configs:
-        job_queue = application.job_queue
-        
-        # 计算首次运行时间
-        next_run_time = calculate_next_run_time(config.auto_report_schedule)
-        delay = (next_run_time - datetime.datetime.now()).total_seconds()
-        
-        # 如果延迟时间太短（小于30秒），则延迟到下一个调度时间
-        if delay < 30:
-            logger.info("首次运行时间过于接近，延迟到下一个调度时间")
-            # 模拟执行一次来计算下一次时间
-            temp_schedule = config.auto_report_schedule.copy()
-            if temp_schedule['type'] == 'daily':
-                next_run_time += datetime.timedelta(days=1)
-            elif temp_schedule['type'] == 'weekly':
-                next_run_time += datetime.timedelta(weeks=1)
-            elif temp_schedule['type'] == 'monthly':
-                if next_run_time.month == 12:
-                    next_run_time = next_run_time.replace(year=next_run_time.year + 1, month=1)
-                else:
-                    next_run_time = next_run_time.replace(month=next_run_time.month + 1)
-            delay = (next_run_time - datetime.datetime.now()).total_seconds()
-        
-        job_queue.run_once(auto_report_job, when=delay)
-        logger.info(f"自动报告任务已设置，{config._format_schedule_display()}，首次运行时间: {next_run_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        schedule_initial_auto_report(application.job_queue, auto_report_job, config)
     else:
         logger.warning("未配置群组，将不启动自动报告任务。")
 

@@ -48,6 +48,9 @@ A Telegram bot that monitors server usage for BandwagonHost (BWG) VPS servers by
    # - Weekly: weekly:DAY:HH:MM or DAY:HH:MM (e.g., MON:09:00)
    # - Monthly: monthly:DD:HH:MM or DD:HH:MM (e.g., 06:09:00)
    AUTO_REPORT_SCHEDULE=daily:09:00
+
+   # Run an automatic report immediately after startup (any non-empty value enables it)
+   # AUTO_REPORT_ON_START=1
    
    # Server configurations (add as many as needed)
    SERVER1_VEID=your_veid_here
@@ -132,6 +135,10 @@ AUTO_REPORT_SCHEDULE=monthly:06:09:00
 ```
 
 **Supported weekdays**: MON, TUE, WED, THU, FRI, SAT, SUN
+
+### Run Once on Startup
+
+Set `AUTO_REPORT_ON_START` to any non-empty value to send one report immediately after the bot starts. The regular `AUTO_REPORT_SCHEDULE` remains active for subsequent reports. Leave it unset or empty to use the scheduled time for the first report.
 
 ## Usage Examples
 
