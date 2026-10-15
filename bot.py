@@ -338,7 +338,8 @@ def schedule_initial_auto_report(job_queue, auto_report_job, config):
     """注册自动报告的首次任务。"""
     if config.auto_report_on_start:
         logger.info("已启用启动时立即执行自动报告")
-        job_queue.run_once(auto_report_job, when=0)
+        # 联网初始化可能超过默认过期时限，启动报告必须在队列就绪后执行一次。
+        job_queue.run_once(auto_report_job, when=0, job_kwargs={'misfire_grace_time': None})
         return
 
     next_run_time = calculate_next_run_time(config.auto_report_schedule)
