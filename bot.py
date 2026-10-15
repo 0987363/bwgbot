@@ -196,6 +196,7 @@ def format_server_info(server_name, data):
     return {
         'server_name': server_name.upper(),
         'hostname': data.get('hostname', 'N/A'),
+        'ip_addresses': data.get('ip_addresses', []),
         'location': data.get('node_location', 'N/A'),
         'plan': data.get('plan', 'N/A'),
         'quota_gb': bytes_to_gb(quota),
@@ -214,6 +215,7 @@ def format_server_usage_text(server_name, data):
     info = format_server_info(server_name, data)
     return (
         f"🖥️ **服务器 {info['server_name']} 流量详情**\n\n"
+        f"🌐 **IP:** {', '.join(f'`{ip}`' for ip in info['ip_addresses'])}\n"
         f"📍 **位置:** {info['location']}\n"
         f"📦 **套餐:** {info['plan']}\n\n"
         f"📊 **流量统计:**\n"

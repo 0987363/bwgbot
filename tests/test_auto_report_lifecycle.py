@@ -75,6 +75,7 @@ class AutoReportLifecycleTests(unittest.IsolatedAsyncioTestCase):
         response = {
             'error': 0,
             'hostname': 'test-server',
+            'ip_addresses': ['203.0.113.10', '2001:db8::10'],
             'node_location': 'test-location',
             'plan': 'test-plan',
             'plan_monthly_data': 1024 ** 3,
@@ -90,6 +91,8 @@ class AutoReportLifecycleTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(len(request.messages), 1)
                     self.assertEqual(request.messages[0]['chat_id'], 123456)
                     self.assertIn('TEST', request.messages[0]['text'])
+                    self.assertIn('`203.0.113.10`', request.messages[0]['text'])
+                    self.assertIn('`2001:db8::10`', request.messages[0]['text'])
                     self.assertIn('test-location', request.messages[0]['text'])
                     self.assertEqual(len(queue.jobs()), 1)
                     self.assertIs(queue.jobs()[0].callback, self.bot.auto_report_job)
