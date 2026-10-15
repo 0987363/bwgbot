@@ -82,7 +82,8 @@ class AutoReportLifecycleTests(unittest.IsolatedAsyncioTestCase):
             'data_counter': 0,
             'data_next_reset': 1800000000,
         }
-        with patch.object(self.bot.requests, 'get') as get_usage:
+        with patch.object(self.bot.bwg.requests, 'get') as get_usage:
+            get_usage.return_value.status_code = 200
             get_usage.return_value.json.return_value = response
             async with application:
                 await application.start()

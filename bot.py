@@ -1,25 +1,17 @@
-# main.py
-
-import requests
-import json
 import datetime
 import os
-import logging
+import sys
+from loguru import logger
 import asyncio
 import re
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 from dotenv import load_dotenv
+import bwg
+import dmit
 
 # 加载 .env 文件中的环境变量
 load_dotenv()
-
-# 配置日志记录
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-logger = logging.getLogger(__name__)
 
 class Config:
     """配置管理类，从环境变量加载所有配置"""
@@ -100,22 +92,16 @@ class Config:
         else:
             return "未知调度类型"
 
-    def _load_servers(self):
-        """从环境变量加载所有服务器配置"""
+    def _load_servers(self) -> dict:
+        """装配供应商模块读取的服务器，拒绝名称冲突。"""
         servers = {}
-        server_names = set(key.replace('_VEID', '').lower() for key in os.environ if key.endswith('_VEID'))
-
-        for name in server_names:
-            veid = os.getenv(f'{name.upper()}_VEID')
-            api_key = os.getenv(f'{name.upper()}_API_KEY')
-            if veid and api_key:
-                servers[name] = {'veid': veid, 'api_key': api_key}
-                logger.info(f"加载服务器配置: {name}")
-            else:
-                logger.warning(f"服务器 {name} 配置不完整，已跳过。")
-        
+        for provider in (bwg, dmit):
+            configured = provider.load_servers()
+            if servers.keys() & configured.keys():
+                raise ValueError('不同供应商不能同时配置相同服务器名称。')
+            servers.update(configured)
         if not servers:
-            raise ValueError("未在 .env 文件中找到任何有效的服务器配置。")
+            raise ValueError('未在环境变量中找到有效的服务器配置。')
         return servers
 
     def _load_group_configs(self):
@@ -155,38 +141,19 @@ def bytes_to_gb(bytes_value):
     """将字节转换为GB"""
     return round(bytes_value / (1024**3), 2)
 
-def timestamp_to_date(timestamp):
-    """将Unix时间戳转换为可读日期"""
-    try:
-        return datetime.datetime.fromtimestamp(int(timestamp)).strftime('%Y-%m-%d')
-    except (ValueError, TypeError):
-        return "N/A"
-
-def get_server_usage(server_name):
-    """通过API获取单个服务器的使用情况"""
+def get_server_usage(server_name: str) -> tuple:
+    """调度对应实例的查询，只消费供应商模块返回的统一数据。"""
     if server_name not in config.servers:
         return None, f"服务器名称 '{server_name}' 不存在。"
-    
-    server_config = config.servers[server_name]
-    url = f"https://api.64clouds.com/v1/getServiceInfo?veid={server_config['veid']}&api_key={server_config['api_key']}"
-    
     try:
-        response = requests.get(url, timeout=15)
-        response.raise_for_status()
-        data = response.json()
-        if data.get('error') != 0:
-            return None, f"API 返回错误: {data.get('message', '未知错误')}"
-        return data, None
-    except requests.exceptions.RequestException as e:
-        return None, f"网络请求失败: {e}"
-    except json.JSONDecodeError:
-        return None, "无法解析API响应 (JSON格式错误)"
+        return config.servers[server_name].get_usage(), None
+    except (bwg.BwgError, dmit.DmitError) as error:
+        return None, str(error)
 
-def format_server_info(server_name, data):
+def format_server_info(server_name: str, data: dict) -> dict:
     """格式化从API获取的服务器数据"""
-    multiplier = data.get('monthly_data_multiplier', 1)
-    quota = data.get('plan_monthly_data', 0) * multiplier
-    used = data.get('data_counter', 0)
+    quota = data['quota_bytes']
+    used = data['used_bytes']
     usage_percentage = (used / quota * 100) if quota > 0 else 0
     
     if usage_percentage > 90: status_icon = "🔴"
@@ -197,13 +164,13 @@ def format_server_info(server_name, data):
         'server_name': server_name.upper(),
         'hostname': data.get('hostname', 'N/A'),
         'ip_addresses': data.get('ip_addresses', []),
-        'location': data.get('node_location', 'N/A'),
+        'location': data['location'],
         'plan': data.get('plan', 'N/A'),
         'quota_gb': bytes_to_gb(quota),
         'used_gb': bytes_to_gb(used),
         'remaining_gb': bytes_to_gb(quota - used),
         'usage_percentage': usage_percentage,
-        'reset_date': timestamp_to_date(data.get('data_next_reset')),
+        'reset_date': data['reset_date'],
         'status_icon': status_icon,
     }
 
@@ -400,6 +367,8 @@ async def auto_report_job(context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     """启动机器人"""
+    logger.remove()
+    logger.add(sys.stderr, level='INFO', backtrace=False, diagnose=False)
     application = Application.builder().token(config.bot_token).build()
 
     # 注册命令处理器

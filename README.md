@@ -190,3 +190,80 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## Support
 
 If you encounter any issues or have questions, please open an issue in the repository.
+
+## Provider modules and environment configuration
+
+`bot.py` owns orchestration, generic report formatting, Telegram delivery, and scheduling.
+`bwg.py` and `dmit.py` each load their own environment configuration, query their
+provider, and return the same report fields: `hostname`, `ip_addresses`, `location`,
+`plan`, `quota_bytes`, `used_bytes`, and `reset_date`. Quotas and usage are bytes;
+provider-specific billing multipliers and date conversion stay in the provider module.
+
+BWG uses `{NAME}_VEID` (the BWG virtual environment identifier) and
+`{NAME}_API_KEY` (its API credential). DMIT uses:
+
+```env
+FONTANA_DMIT_SERVICE_ID=116313
+FONTANA_DMIT_COOKIE='WHMCSUser=...; cf_clearance=...; cf_app_sid=...'
+FONTANA_DMIT_USER_AGENT='User-Agent from the same request'
+```
+
+The service identifier is the purchased VPS service in the detail page URL,
+not the hypervisor VM. All parameters come directly from environment variables;
+`.env` is loaded at startup without overriding existing environment variables.
+There is no credential-file or command-line credential input. Missing required
+configuration fails startup, and provider names cannot collide.
+
+Use `/usage fontana` or include `fontana` in the existing group configuration.
+Both providers can also query every configured instance without Telegram:
+
+```bash
+python bwg.py
+python dmit.py
+```
+
+Success writes JSON keyed by server name to stdout. Diagnostics go to stderr;
+failures exit with code 1. Secrets and raw API responses are not logged. Docker
+includes all three modules; inject credentials through environment variables
+or an environment file, not the image.
+
+DMIT quota usage comes from provider-metered `bwusage`, not traffic since boot.
+MiB is converted to bytes. Reset dates use the panel's monthly UTC rule, including
+shorter-month clamping. Plan and location are unavailable in this endpoint and
+are displayed as `DMIT VPS` and `N/A`. Only quota-based instances are supported.
+
+### DMIT long-lived authentication and session maintenance
+
+This mode supports long-running use with occasional manual credential renewal.
+Sign in through the browser with **Remember Me** selected, complete any Cloudflare
+verification, and copy the authenticated request's Cookie and User-Agent. The
+cookie configuration must contain a nonempty `WHMCSUser`; a temporary session
+cookie alone is rejected.
+
+Each DMIT server has an independent HTTP session. It accepts standard
+`Set-Cookie` updates and sends the updated cookie jar on later requests, instead
+of repeatedly sending the initial Cookie header. Temporary sessions stay in
+memory, never in `.env` or a state file. Restarting the process reloads the
+initial long-lived credentials, allowing DMIT to establish a new temporary
+session. The runtime needs neither login passwords nor Chromium.
+
+On 2026-10-15, a real Remember Me login issued `WHMCSUser` with approximately
+365 days until expiry. Removing the test client's temporary login cookie while
+retaining Remember Me and Cloudflare credentials allowed authenticated usage
+queries and issuance of a new temporary session cookie. The browser-side expiry
+is not a guarantee against earlier server-side revocation.
+
+Authentication failures and login/challenge pages produce actionable errors in
+`/usage`, `/report`, and configured scheduled reports: log in again with Remember
+Me, update the environment variables, and restart. There is no extra monitoring
+schedule or invented 365-day countdown, and failures are not reported as zero usage.
+
+Cloudflare clearance is separate from account authentication. Either credential
+may need manual replacement before its listed expiry. Fresh-browser testing
+encountered an interactive challenge, so completely unattended operation is not
+guaranteed. The runtime does not perform password login, solve challenges, or
+obtain new long-lived credentials. Check acceptance from the actual deployment
+network before deployment.
+
+Sources: [WHMCS Sessions](https://docs.whmcs.com/8-11/customization/sessions/) and
+[Cloudflare Challenge Passage](https://developers.cloudflare.com/cloudflare-challenges/challenge-types/challenge-pages/challenge-passage/).

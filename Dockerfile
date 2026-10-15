@@ -16,7 +16,7 @@ COPY requirements.txt .
 RUN pip3 install --no-cache-dir -r requirements.txt
 
 # 3. 将所有项目文件复制到镜像的工作目录里
-COPY ./bot.py /bot.py
+COPY ./bot.py ./bwg.py ./dmit.py /
 
 # 设置容器启动时默认执行的命令
 CMD ["python3", "/bot.py"]

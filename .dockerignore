@@ -1,0 +1,6 @@
+.env
+.dmit-session.json
+.git
+.worktrees
+.planning
+__pycache__

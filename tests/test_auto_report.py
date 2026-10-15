@@ -21,16 +21,12 @@ def load_bot_module():
     dotenv = types.ModuleType("dotenv")
     dotenv.load_dotenv = lambda: None
 
-    requests = types.ModuleType("requests")
-    requests.exceptions = types.SimpleNamespace(RequestException=Exception)
-
     with patch.dict(
         sys.modules,
         {
             "telegram": telegram,
             "telegram.ext": telegram_ext,
             "dotenv": dotenv,
-            "requests": requests,
         },
     ), patch.dict(
         os.environ,

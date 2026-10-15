@@ -5,6 +5,8 @@
 
 一个 Telegram 机器人，通过查询 64clouds API 监控 BandwagonHost (BWG) VPS 服务器使用情况，并在指定的时间自动向配置的 Telegram 群组或用户发送报告。
 
+也支持使用登录 Cookie 查询 DMIT 控制台的套餐流量，复用 `/usage`、`/report` 和自动报告。
+
 ## 功能特性
 
 - 📊 **实时服务器监控**：查询单个服务器使用统计信息
@@ -192,3 +194,53 @@ AUTO_REPORT_SCHEDULE=monthly:06:09:00
 ## 支持
 
 如果您遇到任何问题或有疑问，请在仓库中创建 issue。
+
+## 模块与环境变量
+
+- `bot.py`：装配服务器、生成通用报告、处理 Telegram 命令和推送、安排任务。
+- `bwg.py`：读取 BWG 环境变量、查询 API、处理额度倍数和重置时间、返回统一报告数据。
+- `dmit.py`：读取 DMIT 环境变量、查询控制台只读 JSON、转换 MiB 和 UTC 月度重置日期。
+
+供应商模块都返回 `quota_bytes`（总额度字节数）、`used_bytes`（套餐已用字节数）、`reset_date`（展示日期）、`hostname`（主机名）、`ip_addresses`（地址列表）、`location`（机房说明）、`plan`（套餐说明）。机器人不解析供应商原始字段。
+
+所有参数从环境变量读取；直接启动脚本也会加载 `.env`，已有进程环境变量优先。BWG 保留 `{名称}_VEID`（BWG 虚拟环境编号）和 `{名称}_API_KEY`（该实例 API 密钥）。DMIT 配置示例：
+
+```env
+# DMIT 服务记录编号：详情页 URL 的 id，标识账号购买的 VPS 服务，不是宿主机虚拟机编号。
+FONTANA_DMIT_SERVICE_ID=116313
+# 登录时勾选“记住我”，从本人 whmcsdetail 请求复制 Cookie；必须含 WHMCSUser。
+FONTANA_DMIT_COOKIE='在此填写请求 Cookie'
+# 从同一请求复制 User-Agent。
+FONTANA_DMIT_USER_AGENT='在此填写 User-Agent'
+```
+
+不再读取 DMIT 会话 JSON 文件，也不再接受服务编号/凭据文件命令行参数。服务器名为 `fontana`，可查询 `/usage fontana`，或放入现有群组服务器列表。同名服务器不能同时属于两个供应商；配置缺少必要认证参数会阻止启动，不静默跳过。
+
+两个供应商都能独立查询，无需 Telegram Token；会查询环境变量中该供应商的全部已配置实例：
+
+```bash
+python bwg.py
+python dmit.py
+```
+
+成功向标准输出写入按服务器名组织的 JSON，失败退出码为 1；日志写入标准错误，不输出密钥、Cookie、完整请求 URL 或原始响应。部署时通过容器环境变量（或 `--env-file`）注入参数；镜像包含三个脚本，不包含 `.env`。
+
+DMIT 使用权威 `bwusage`，不自行累加上下行，也不使用开机累计流量。MiB 转字节后，报告展示与控制台 GB 数字一致。重置日期依控制台规则按续费日号计算每月 UTC 日期，短月取月底；这不是实际重置执行记录。接口不返回套餐名称和机房，报告显示 `DMIT VPS`、`N/A`。当前支持有配额实例，缺失或无效数据直接报错。
+
+### DMIT 长效 Cookie 与会话维护
+
+本方案接受正常情况下长期运行、认证偶发提前失效时人工更新。
+
+1. 在浏览器登录 DMIT 时勾选“Remember Me／记住我”，必要时手动完成 Cloudflare 验证。
+2. 从已登录详情页的 `whmcsdetail` 请求复制 Cookie 和 User-Agent 到对应环境变量。Cookie 必须包含非空 `WHMCSUser`（DMIT 的记住我认证凭据），并保留请求需要的 Cloudflare Cookie；只有临时 WHMCS 会话 Cookie 的配置会被拒绝。
+3. 启动机器人。每个 DMIT 实例使用独立 HTTP 会话，自动接收 `Set-Cookie`，后续请求复用更新后的 Cookie，不再反复发送初始旧值。
+
+临时会话保存在进程内，不写回 `.env` 或磁盘。进程重启时重新读取初始长效 Cookie，由 DMIT 的记住我机制建立临时登录会话。运行时不需要登录邮箱或密码，也不依赖 Chromium。
+
+2026-10-15 已实测：勾选记住我后 DMIT 签发约365天的 `WHMCSUser`；删除独立测试客户端中的临时会话 Cookie 后，保留记住我和 Cloudflare Cookie，查询成功并获得新的临时会话 Cookie。365天是客户端过期属性，不保证服务端不会提前撤销。
+
+认证失效、返回登录页或需要 Cloudflare 验证时，`/usage` 查询回复、`/report` 及已配置的定时报告会明确提示：重新登录并勾选记住我，更新 Cookie/User-Agent 环境变量后重启。提示在查询时产生，没有额外监控任务或固定365天倒计时；失败不会显示成零流量。
+
+`cf_clearance` 是独立的 Cloudflare 通行凭据。它或记住我凭据被撤销后仍可能需要人工更新。本机空会话 Chromium 验证已遇到人工挑战，不能承诺全年完全无人干预；运行时不自动登录、不解决人工挑战、不自行获取新的长效 Cookie。部署到不同出口仍需验证 Cookie 是否被接受。
+
+参考：[WHMCS Sessions](https://docs.whmcs.com/8-11/customization/sessions/)、[Cloudflare Challenge Passage](https://developers.cloudflare.com/cloudflare-challenges/challenge-types/challenge-pages/challenge-passage/)。

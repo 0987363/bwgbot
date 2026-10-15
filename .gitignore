@@ -1,1 +1,4 @@
 .env
+.dmit-session.json
+.worktrees/
+__pycache__/
